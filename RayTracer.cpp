@@ -70,7 +70,6 @@ glm::vec3 trace(Ray ray, int step)
     Ray shadowRay(ray.hit, lightVec);
     shadowRay.closestPt(sceneObjects);
 
-
     if(shadowRay.index > -1 && shadowRay.dist < glm::length(lightVec)) {
 
         SceneObject* shadowHitObj = sceneObjects[shadowRay.index];
@@ -118,9 +117,12 @@ glm::vec3 trace(Ray ray, int step)
         color = color + (rho * refractedColor);
 	}
 
-	if(obj->isTransparent())
+	if(obj->isTransparent() && step < MAX_STEPS)
     {
-	    // TODO: Implement This
+	    float rho = obj->getTransparencyCoeff();
+	    Ray transparentRay(ray.hit, ray.dir);
+        glm::vec3 transparentColor = trace(transparentRay, step + 1);
+        color = color + (rho * transparentColor);
     }
 
 	return color;
@@ -216,7 +218,7 @@ void initialize()
 
 	Sphere *sphere1 = new Sphere(glm::vec3(0, 0, -37.5), 5.0);
 	sphere1->setColor(glm::vec3(0, 0, 0.2));   //Set colour to blue
-	sphere1->setRefractivity(true);
+	sphere1->setTransparency(true);
 	sphere1->setReflectivity(true);
 	sphere1->setShininess(10);
 	sceneObjects.push_back(sphere1);		 //Add sphere to scene objects
