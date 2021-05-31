@@ -22,11 +22,17 @@ const float WIDTH = 100.0;
 const float HEIGHT = 100.0;
 const float EDIST = 100.0;
 const int NUMDIV = 500;
-const int MAX_STEPS = 10;
+const int MAX_STEPS = 5;
+
+const int MAX_ALIAS_STEPS = 2;
+const float COL_DIFF = 0.5f;
+
 const float XMIN = -WIDTH * 0.5;
 const float XMAX =  WIDTH * 0.5;
 const float YMIN = -HEIGHT * 0.5;
 const float YMAX =  HEIGHT * 0.5;
+const int ANTI_ALIASING = false;
+
 TextureBMP texture;
 
 vector<SceneObject*> sceneObjects;
@@ -99,7 +105,7 @@ glm::vec3 trace(Ray ray, int step)
 	if(obj->isRefractive() && step < MAX_STEPS)
 	{
 	    float rho = obj->getRefractionCoeff();
-	    float eta = 1/1.01;
+	    float eta = 1/obj->getRefractiveIndex();
 
 	    // Initial Hit
 	    glm::vec3 normalVec = obj->normal(ray.hit);
@@ -117,15 +123,84 @@ glm::vec3 trace(Ray ray, int step)
         color = color + (rho * refractedColor);
 	}
 
+
 	if(obj->isTransparent() && step < MAX_STEPS)
     {
 	    float rho = obj->getTransparencyCoeff();
 	    Ray transparentRay(ray.hit, ray.dir);
-        glm::vec3 transparentColor = trace(transparentRay, step + 1);
+	    transparentRay.closestPt(sceneObjects);
+	    Ray exitRay(transparentRay.hit, ray.dir);
+        glm::vec3 transparentColor = trace(exitRay, step + 1);
         color = color + (rho * transparentColor);
     }
 
 	return color;
+}
+
+int isDistinct(glm::vec3 color1, glm::vec3 ave) {
+    // TODO: FIX This
+    return (((color1.x - ave.x) / ave.x > COL_DIFF) ||
+    ((color1.y - ave.y) / ave.y > COL_DIFF) ||
+    ((color1.z - ave.z) / ave.z > COL_DIFF));
+}
+
+
+
+glm::vec3 aliasing(float xp, float yp, float cellX, float cellY, int step)
+{
+    glm::vec3 eye(0., 0., 0.);
+    Ray ray;
+    glm::vec3 dir;
+
+    // Ray 1
+    dir = glm::vec3(xp+0.25*cellX, yp+0.25*cellY, -EDIST);
+    ray = Ray(eye, dir);
+    glm::vec3 col1 = trace(ray, 1);
+
+    // Ray 2
+    dir = glm::vec3(xp+0.75*cellX, yp+0.25*cellY, -EDIST);
+    ray = Ray(eye, dir);
+    glm::vec3 col2 = trace(ray, 1);
+
+    // Ray 3
+    dir = glm::vec3(xp+0.75*cellX, yp+0.25*cellY, -EDIST);
+    ray = Ray(eye, dir);
+    glm::vec3 col3 = trace(ray, 1);
+
+    // Ray 4
+    dir = glm::vec3(xp+0.75*cellX, yp+0.75*cellY, -EDIST);
+    ray = Ray(eye, dir);
+    glm::vec3 col4 = trace(ray, 1);
+
+
+    glm::vec3 ave = (col1 + col2 + col3 + col4) / 4.0f;
+
+    if (step >= MAX_ALIAS_STEPS) {
+        return ave;
+    } else {
+
+        if (isDistinct(col1, ave))
+        {
+            col1 = aliasing(xp, yp, cellX*0.5f, cellY*0.5f, step);
+        }
+
+        if (isDistinct(col2, ave))
+        {
+            col2 = aliasing(xp + 0.5f*cellX, yp, cellX*0.5f, cellY*0.5f, step);
+        }
+
+        if (isDistinct(col3, ave))
+        {
+            col3 = aliasing(xp, yp + 0.5f*cellY, cellX*0.5f, cellY*0.5f, step);
+        }
+
+        if (isDistinct(col4, ave))
+        {
+            col4 = aliasing(xp + 0.5f*cellX, yp + 0.5f*cellY, cellX*0.5f, cellY*0.5f, step);
+        }
+
+        return (col1 + col2 + col3 + col4) / 4.0f;
+    }
 }
 
 //---The main display module -----------------------------------------------------------
@@ -152,11 +227,22 @@ void display()
 		{
 			yp = YMIN + j*cellY;
 
-		    glm::vec3 dir(xp+0.5*cellX, yp+0.5*cellY, -EDIST);	//direction of the primary ray
+            glm::vec3 col;
 
-		    Ray ray = Ray(eye, dir);
 
-		    glm::vec3 col = trace (ray, 1); //Trace the primary ray and get the colour value
+
+			if (ANTI_ALIASING) {
+
+                col = aliasing(xp, yp, cellX, cellY, 1);
+
+			} else {
+                glm::vec3 dir(xp+0.5*cellX, yp+0.5*cellY, -EDIST);	//direction of the primary ray
+
+                Ray ray = Ray(eye, dir);
+
+                col = trace (ray, 1); //Trace the primary ray and get the colour value
+			}
+
 			glColor3f(col.r, col.g, col.b);
 			glVertex2f(xp, yp);				//Draw each cell with its color value
 			glVertex2f(xp+cellX, yp);
@@ -218,9 +304,9 @@ void initialize()
 
 	Sphere *sphere1 = new Sphere(glm::vec3(0, 0, -37.5), 5.0);
 	sphere1->setColor(glm::vec3(0, 0, 0.2));   //Set colour to blue
-	sphere1->setTransparency(true);
-	sphere1->setReflectivity(true);
-	sphere1->setShininess(10);
+	sphere1->setRefractivity(true, 0.8, 1.01);
+	sphere1->setReflectivity(true, 0.3);
+	sphere1->setShininess(20);
 	sceneObjects.push_back(sphere1);		 //Add sphere to scene objects
 
 
@@ -229,18 +315,10 @@ void initialize()
 	sphere2->setShininess(5);
 	sceneObjects.push_back(sphere2);
 
-
-//
-//	Sphere *sphere3 = new Sphere(glm::vec3(5, -10, -60), 5.0);
-//	sphere3->setColor(glm::vec3(1, 0, 1));
-//	sphere3->setSpecularity(false);
-//	sceneObjects.push_back(sphere3);
-//
-//	Sphere *sphere4 = new Sphere(glm::vec3(10, 10, -60), 3.0);
-//	sphere4->setColor(glm::vec3(0, 1, 1));
-//	sceneObjects.push_back(sphere4);
+	Sphere *sphere4 = new Sphere(glm::vec3(10, 10, -40), 3.0);
+	sphere4->setColor(glm::vec3(0, 1, 1));
+	sceneObjects.push_back(sphere4);
 }
-
 
 int main(int argc, char *argv[]) {
     glutInit(&argc, argv);
