@@ -143,6 +143,33 @@ RayTracer.out/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/RayTracer.out.dir/build.make CMakeFiles/RayTracer.out.dir/build
 .PHONY : RayTracer.out/fast
 
+Cylinder.o: Cylinder.cpp.o
+
+.PHONY : Cylinder.o
+
+# target to build an object file
+Cylinder.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/RayTracer.out.dir/build.make CMakeFiles/RayTracer.out.dir/Cylinder.cpp.o
+.PHONY : Cylinder.cpp.o
+
+Cylinder.i: Cylinder.cpp.i
+
+.PHONY : Cylinder.i
+
+# target to preprocess a source file
+Cylinder.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/RayTracer.out.dir/build.make CMakeFiles/RayTracer.out.dir/Cylinder.cpp.i
+.PHONY : Cylinder.cpp.i
+
+Cylinder.s: Cylinder.cpp.s
+
+.PHONY : Cylinder.s
+
+# target to generate assembly for a file
+Cylinder.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/RayTracer.out.dir/build.make CMakeFiles/RayTracer.out.dir/Cylinder.cpp.s
+.PHONY : Cylinder.cpp.s
+
 Plane.o: Plane.cpp.o
 
 .PHONY : Plane.o
@@ -314,6 +341,9 @@ help:
 	@echo "... edit_cache"
 	@echo "... rebuild_cache"
 	@echo "... RayTracer.out"
+	@echo "... Cylinder.o"
+	@echo "... Cylinder.i"
+	@echo "... Cylinder.s"
 	@echo "... Plane.o"
 	@echo "... Plane.i"
 	@echo "... Plane.s"

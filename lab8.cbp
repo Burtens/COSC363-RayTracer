@@ -82,6 +82,12 @@
 				</MakeCommands>
 			</Target>
 		</Build>
+		<Unit filename="/home/cosc/student/sgb79/Desktop/SENG363 Assignment/363-ray-tracer/Cylinder.cpp">
+			<Option target="RayTracer.out"/>
+		</Unit>
+		<Unit filename="/home/cosc/student/sgb79/Desktop/SENG363 Assignment/363-ray-tracer/Cylinder.h">
+			<Option target="RayTracer.out"/>
+		</Unit>
 		<Unit filename="/home/cosc/student/sgb79/Desktop/SENG363 Assignment/363-ray-tracer/Plane.cpp">
 			<Option target="RayTracer.out"/>
 		</Unit>
