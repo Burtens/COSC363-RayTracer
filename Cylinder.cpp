@@ -53,7 +53,7 @@
         {
             if (hasCap)
             {
-
+                return (center.y+height-p0.y)/dir.y;
             }
             else
             {
@@ -71,6 +71,7 @@
 
  glm::vec3 Cylinder::normal(glm::vec3 p)
  {
+     if(p.y == center.y+height) return glm::vec3 (0, 1, 0);
      glm::vec3 n((p.x-center.x),0,(p.z-center.z));
      n = glm::normalize(n);
      return n;

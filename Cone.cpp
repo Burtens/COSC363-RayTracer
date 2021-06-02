@@ -14,13 +14,13 @@ float Cone::intersect(glm::vec3 p0, glm::vec3 dir)
 
     float xDif = p0.x - center.x;
     float zDif = p0.z - center.z;
-    float yDif = trueHeight - p0.y - center.y;
-    float heightConstant = (radius/(trueHeight)) * (radius/(trueHeight));
+    float yDif = height + p0.y + center.y;
+    float heightConstant = (radius/height) * (radius/height);
 
 
     // Calculate values to generate cylinder
     float a = dir.x*dir.x + dir.z*dir.z - heightConstant*dir.y*dir.y;
-    float b = 2*(dir.x*xDif+dir.z*zDif-heightConstant*dir.y*yDif);
+    float b = 2*(dir.x*xDif+dir.z*zDif - heightConstant*dir.y*yDif);
     float c = xDif*xDif + zDif*zDif - heightConstant*yDif*yDif;
 
     float delta = b*b - 4.0f*a*c;
@@ -41,6 +41,7 @@ float Cone::intersect(glm::vec3 p0, glm::vec3 dir)
         closestVal = t1;
     }
 
+
     glm::vec3 point = p0 + closestVal*dir;
     if (point.y > trueHeight)
     {
@@ -50,8 +51,6 @@ float Cone::intersect(glm::vec3 p0, glm::vec3 dir)
     {
         return closestVal;
     }
-
-
 }
 
 /**

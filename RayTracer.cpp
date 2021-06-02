@@ -14,16 +14,19 @@
 #include "Plane.h"
 #include "Cylinder.h"
 #include "Ray.h"
-#include "Cone.h"
 #include "TextureBMP.h"
 #include <GL/freeglut.h>
+
+
 using namespace std;
 
 const float WIDTH = 100.0;
 const float HEIGHT = 100.0;
 const float EDIST = 100.0;
-const int NUMDIV = 500;
+const int NUMDIV = 600;
 const int MAX_STEPS = 5;
+const float MAX_FOG = -200;
+const float MIN_FOG = -20;
 
 const int MAX_ALIAS_STEPS = 5;
 const float COL_DIFF = 0.2f;
@@ -32,7 +35,8 @@ const float XMIN = -WIDTH * 0.5;
 const float XMAX =  WIDTH * 0.5;
 const float YMIN = -HEIGHT * 0.5;
 const float YMAX =  HEIGHT * 0.5;
-const int ANTI_ALIASING = false;
+const int ANTI_ALIASING = true;
+const int FOG = true;
 
 TextureBMP texture;
 
@@ -45,7 +49,7 @@ vector<SceneObject*> sceneObjects;
 //----------------------------------------------------------------------------------
 glm::vec3 trace(Ray ray, int step)
 {
-	glm::vec3 backgroundCol(0);
+	glm::vec3 backgroundCol(0.8, 0.8, 0.8);
 	glm::vec3 lightPos(30, 40, 20);					//Light's position
 	glm::vec3 color(0);
 	SceneObject* obj;
@@ -53,6 +57,7 @@ glm::vec3 trace(Ray ray, int step)
     ray.closestPt(sceneObjects);					//Compare the ray with all objects in the scene
     if(ray.index == -1) return backgroundCol;		//no intersection
 	obj = sceneObjects[ray.index];					//object on which the closest point of intersection is found
+
 
 	if (ray.index == 0)
     {
@@ -66,16 +71,29 @@ glm::vec3 trace(Ray ray, int step)
 
         if (ray.hit.x < 0) l = abs((ix + 1) % 2);
 
-	    if (k == 0 && l == 0) color = glm::vec3(1, 0, 0);
-	    else if (k == 0 && l == 1) color = glm::vec3(0, 1, 0);
-	    else if (k == 1 && l == 0) color = glm::vec3(0, 1, 0);
-        else if (k == 1 && l == 1) color = glm::vec3(1, 0, 0);
+        glm::vec3 floor_color(0);
+	    if (k == 0 && l == 0) floor_color = glm::vec3(1, 0, 0);
+	    else if (k == 0 && l == 1) floor_color = glm::vec3(0, 1, 0);
+	    else if (k == 1 && l == 0) floor_color = glm::vec3(0, 1, 0);
+        else if (k == 1 && l == 1) floor_color = glm::vec3(1, 0, 0);
 
-        obj->setColor(color);
+        obj->setColor(floor_color);
     }
 
-    color = obj->lighting(lightPos, -ray.dir, ray.hit);
+	if (ray.index == 1) {
+
+	    glm::vec3 n = obj->normal(ray.hit);
+
+	    float u = 0.5 + atan2(n.x, n.z)/(2*M_PI);
+	    float v = 0.5 - asin(n.y)/M_PI;
+
+	    glm::vec3 texture_colour = texture.getColorAt(u, v);
+	    obj->setColor(texture_colour);
+	}
+
+    glm::vec3 surface_color = obj->lighting(lightPos, -ray.dir, ray.hit);
     glm::vec3 lightVec = lightPos - ray.hit;
+
     Ray shadowRay(ray.hit, lightVec);
     shadowRay.closestPt(sceneObjects);
 
@@ -83,15 +101,17 @@ glm::vec3 trace(Ray ray, int step)
 
         SceneObject* shadowHitObj = sceneObjects[shadowRay.index];
 
-        if (shadowHitObj->isTransparent() || shadowHitObj->isRefractive())
+        if (shadowHitObj->isTransparent())
         {
-            color = 0.5f * obj->getColor();
+            surface_color = 0.2f * shadowHitObj->getColor() * (1-shadowHitObj->getTransparencyCoeff()) + ((shadowHitObj->getTransparencyCoeff()) * surface_color);
         }
-        else
+        else if (shadowHitObj->isRefractive())
         {
-            color = 0.2f * obj->getColor();
+            surface_color = 0.8f * (shadowHitObj->getColor() * (1-shadowHitObj->getRefractionCoeff()) + ((shadowHitObj->getRefractionCoeff()) * surface_color));
         }
-
+        else {
+            surface_color = 0.1f * obj->getColor();
+        }
     }
 
 	if(obj->isReflective() && step < MAX_STEPS)
@@ -101,13 +121,13 @@ glm::vec3 trace(Ray ray, int step)
 	    glm::vec3 reflectedDir = glm::reflect(ray.dir, normalVec);
 	    Ray reflectedRay(ray.hit, reflectedDir);
 	    glm::vec3 reflectedColor = trace(reflectedRay, step + 1);
-	    color = color + (rho * reflectedColor);
+	    surface_color = (1-rho)*surface_color + (rho * reflectedColor);
 	}
 
 	if(obj->isRefractive() && step < MAX_STEPS)
 	{
 	    float rho = obj->getRefractionCoeff();
-	    float eta = 1/obj->getRefractiveIndex();
+	    float eta = obj->getRefractiveIndex();
 
 	    // Initial Hit
 	    glm::vec3 normalVec = obj->normal(ray.hit);
@@ -122,9 +142,8 @@ glm::vec3 trace(Ray ray, int step)
 
 	    // Recurse for MAX_STEPS
         glm::vec3 refractedColor = trace(exitRay, step + 1);
-        color = color + (rho * refractedColor);
+        surface_color = (1-rho) * surface_color + (rho * refractedColor);
 	}
-
 
 	if(obj->isTransparent() && step < MAX_STEPS)
     {
@@ -133,10 +152,22 @@ glm::vec3 trace(Ray ray, int step)
 	    transparentRay.closestPt(sceneObjects);
 	    Ray exitRay(transparentRay.hit, ray.dir);
         glm::vec3 transparentColor = trace(exitRay, step + 1);
-        color = color + (rho * transparentColor);
+        surface_color = (1-rho)*surface_color + (rho * transparentColor);
     }
 
-	return color;
+
+	if (FOG)
+    {
+        float fog = (ray.hit.z-MIN_FOG)/(MAX_FOG-MIN_FOG);
+        color += (1-fog)*surface_color + fog*glm::vec3(0.8, 0.8, 0.8);
+    }
+	else
+    {
+	    color += surface_color;
+    }
+
+
+    return color;
 }
 
 int isDistinct(glm::vec3 color1, glm::vec3 ave) {
@@ -281,6 +312,13 @@ void initialize()
     plane->setSpecularity(false);
     sceneObjects.push_back(plane);
 
+    // Textured Sphere
+    Sphere *texturedSphere = new Sphere(glm::vec3(6, -4, -55), 3.0);
+    //texturedSphere->setShininess(5);
+    //texturedSphere->setReflectivity(true, 0.8);
+    sceneObjects.push_back(texturedSphere);
+
+
     glm::vec3 A(-10, -15, -45);
     glm::vec3 B(0, -15, -35);
     glm::vec3 C(0, -5, -37.5);
@@ -294,8 +332,6 @@ void initialize()
     Plane *triangle4 = new Plane(E, A, C);
 
 
-
-
     triangle1->setColor(glm::vec3(0, 0, 1));
     triangle2->setColor(glm::vec3(0, 0, 1));
     triangle3->setColor(glm::vec3(0, 0, 1));
@@ -306,48 +342,47 @@ void initialize()
     sceneObjects.push_back(triangle4);
 
 
-	Sphere *sphere1 = new Sphere(glm::vec3(0, 0, -37.5), 5.0);
-	sphere1->setColor(glm::vec3(0, 0, 0.2));   //Set colour to blue
-	sphere1->setRefractivity(true, 0.8, 1.01);
-	sphere1->setReflectivity(true, 0.3);
-	sphere1->setShininess(20);
+    //Refractive Sphere
+	Sphere *sphere1 = new Sphere(glm::vec3(0, 0, -37), 5.0);
+	sphere1->setColor(glm::vec3(1, 1, 0));
+	sphere1->setRefractivity(true, 0.76, 1.01);
+	sphere1->setReflectivity(true, 0.2);
+
+    sphere1->setShininess(20);
 	sceneObjects.push_back(sphere1);		 //Add sphere to scene objects
 
-	Sphere *sphere2 = new Sphere(glm::vec3(5, 5, -70), 4.0);
+	//Red Sphere
+	Sphere *sphere2 = new Sphere(glm::vec3(5, 10, -100), 4.0);
 	sphere2->setColor(glm::vec3(1, 0, 0));
 	sphere2->setShininess(5);
 	sceneObjects.push_back(sphere2);
 
-    Sphere *sphere3 = new Sphere(glm::vec3(-2, -2, -60), 2.0);
+	//Reflective Sphere
+    Sphere *sphere3 = new Sphere(glm::vec3(-5, 0, -60), 5.0);
     sphere3->setColor(glm::vec3(0, 0, 0));
     sphere3->setShininess(5);
     sphere3->setReflectivity(true, 0.8);
     sceneObjects.push_back(sphere3);
 
-//    Sphere *sphere4 = new Sphere(glm::vec3(20, -6.5, -50), 4);
-//	sphere4->setTransparency(true, 0.5);
-//	sphere4->setColor(glm::vec3(0.4, 0.4, 0.8));
-//	sphere4->setReflectivity(true, 0.5);
-//	sceneObjects.push_back(sphere4);
-//
-//	Cylinder *cylinder1 = new Cylinder(glm::vec3(20, -15, -50), 2.0, 5, false);
-//	cylinder1->setColor(glm::vec3(0, 0, 1));
-//	sceneObjects.push_back(cylinder1);
+    Sphere *sphere4 = new Sphere(glm::vec3(20, -5, -50), 4.25);
+    sphere4->setTransparency(true, 0.5);
+    sphere4->setColor(glm::vec3(0.4, 0.4, 0.8));
+    sphere4->setReflectivity(true, 0.2);
+    sceneObjects.push_back(sphere4);
 
-    Sphere *sphere5 = new Sphere(glm::vec3(-20, -6.5, -50), 4);
-    sphere5->setTransparency(true, 0.5);
-    sphere5->setColor(glm::vec3(0.4, 0.4, 0.8));
-    sphere5->setReflectivity(true, 0.5);
-    sceneObjects.push_back(sphere5);
+	Cylinder *cylinder1 = new Cylinder(glm::vec3(20, -15, -50), 2.5, 5, true);
+	cylinder1->setColor(glm::vec3(0, 0, 1));
+	sceneObjects.push_back(cylinder1);
 
-    Cylinder *cylinder2 = new Cylinder(glm::vec3(-20, -15, -50), 2.0, 5, false);
+    Sphere *sphere6 = new Sphere(glm::vec3(-20, -5, -50), 4.25);
+    sphere6->setTransparency(true, 0.5);
+    sphere6->setColor(glm::vec3(0.4, 0.4, 0.8));
+    sphere6->setReflectivity(true, 0.2);
+    sceneObjects.push_back(sphere6);
+
+    Cylinder *cylinder2 = new Cylinder(glm::vec3(-20, -15, -50), 2.5, 5, true);
     cylinder2->setColor(glm::vec3(0, 0, 1));
     sceneObjects.push_back(cylinder2);
-
-    Cone *cone = new Cone(glm::vec3(25, -15, -70), 2, 5);
-    cone->setColor(glm::vec3(0, 0, 1));
-    sceneObjects.push_back(cone);
-
 
 }
 
