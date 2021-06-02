@@ -14,6 +14,7 @@
 #include "Plane.h"
 #include "Cylinder.h"
 #include "Ray.h"
+#include "Cone.h"
 #include "TextureBMP.h"
 #include <GL/freeglut.h>
 
@@ -315,7 +316,6 @@ void initialize()
     // Textured Sphere
     Sphere *texturedSphere = new Sphere(glm::vec3(6, -4, -55), 3.0);
     //texturedSphere->setShininess(5);
-    //texturedSphere->setReflectivity(true, 0.8);
     sceneObjects.push_back(texturedSphere);
 
 
@@ -383,6 +383,14 @@ void initialize()
     Cylinder *cylinder2 = new Cylinder(glm::vec3(-20, -15, -50), 2.5, 5, true);
     cylinder2->setColor(glm::vec3(0, 0, 1));
     sceneObjects.push_back(cylinder2);
+
+    Cone *cone1 = new Cone(glm::vec3(40, -15, -100), 2, 10);
+    cone1->setColor(glm::vec3(1, 0, 0));
+    sceneObjects.push_back(cone1);
+
+    Cone *cone2 = new Cone(glm::vec3(-40, -15, -100), 2, 10);
+    cone2->setColor(glm::vec3(1, 0, 0));
+    sceneObjects.push_back(cone2);
 
 }
 
