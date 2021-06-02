@@ -14,6 +14,7 @@
 #include "Plane.h"
 #include "Cylinder.h"
 #include "Ray.h"
+#include "Cone.h"
 #include "TextureBMP.h"
 #include <GL/freeglut.h>
 using namespace std;
@@ -24,14 +25,14 @@ const float EDIST = 100.0;
 const int NUMDIV = 500;
 const int MAX_STEPS = 5;
 
-const int MAX_ALIAS_STEPS = 1;
-const float COL_DIFF = 0.5f;
+const int MAX_ALIAS_STEPS = 5;
+const float COL_DIFF = 0.2f;
 
 const float XMIN = -WIDTH * 0.5;
 const float XMAX =  WIDTH * 0.5;
 const float YMIN = -HEIGHT * 0.5;
 const float YMAX =  HEIGHT * 0.5;
-const int ANTI_ALIASING = true;
+const int ANTI_ALIASING = false;
 
 TextureBMP texture;
 
@@ -63,6 +64,8 @@ glm::vec3 trace(Ray ray, int step)
 	    int k = abs(iz % 2);
         int l = abs(ix % 2);
 
+        if (ray.hit.x < 0) l = abs((ix + 1) % 2);
+
 	    if (k == 0 && l == 0) color = glm::vec3(1, 0, 0);
 	    else if (k == 0 && l == 1) color = glm::vec3(0, 1, 0);
 	    else if (k == 1 && l == 0) color = glm::vec3(0, 1, 0);
@@ -90,7 +93,6 @@ glm::vec3 trace(Ray ray, int step)
         }
 
     }
-
 
 	if(obj->isReflective() && step < MAX_STEPS)
 	{
@@ -138,8 +140,6 @@ glm::vec3 trace(Ray ray, int step)
 }
 
 int isDistinct(glm::vec3 color1, glm::vec3 ave) {
-    // TODO: FIX This
-
     return (abs(color1.x - ave.x) > COL_DIFF) ||
     (abs(color1.y - ave.y) > COL_DIFF) ||
     (abs(color1.z - ave.z) > COL_DIFF);
@@ -147,9 +147,8 @@ int isDistinct(glm::vec3 color1, glm::vec3 ave) {
 
 
 
-glm::vec3 aliasing(float xp, float yp, float cellX, float cellY, int step)
+glm::vec3 aliasing(glm::vec3 eye, float xp, float yp, float cellX, float cellY, int step)
 {
-    glm::vec3 eye(0., 0., 0.);
     Ray ray;
     glm::vec3 dir;
 
@@ -182,22 +181,22 @@ glm::vec3 aliasing(float xp, float yp, float cellX, float cellY, int step)
 
         if (isDistinct(col1, ave))
         {
-            col1 = aliasing(xp, yp, cellX*0.5f, cellY*0.5f, step);
+            col1 = aliasing(eye, xp, yp, cellX*0.5f, cellY*0.5f, step+1);
         }
 
         if (isDistinct(col2, ave))
         {
-            col2 = aliasing(xp + 0.5f*cellX, yp, cellX*0.5f, cellY*0.5f, step);
+            col2 = aliasing(eye, xp + 0.5f*cellX, yp, cellX*0.5f, cellY*0.5f, step+1);
         }
 
         if (isDistinct(col3, ave))
         {
-            col3 = aliasing(xp, yp + 0.5f*cellY, cellX*0.5f, cellY*0.5f, step);
+            col3 = aliasing(eye, xp, yp + 0.5f*cellY, cellX*0.5f, cellY*0.5f, step+1);
         }
 
         if (isDistinct(col4, ave))
         {
-            col4 = aliasing(xp + 0.5f*cellX, yp + 0.5f*cellY, cellX*0.5f, cellY*0.5f, step);
+            col4 = aliasing(eye, xp + 0.5f*cellX, yp + 0.5f*cellY, cellX*0.5f, cellY*0.5f, step+1);
         }
 
         return (col1 + col2 + col3 + col4) / 4.0f;
@@ -213,11 +212,11 @@ void display()
 	float xp, yp;  //grid point
 	float cellX = (XMAX-XMIN)/NUMDIV;  //cell width
 	float cellY = (YMAX-YMIN)/NUMDIV;  //cell height
-	glm::vec3 eye(0., 0., 0.);
 
 	glClear(GL_COLOR_BUFFER_BIT);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
+    glm::vec3 eye(0., 0., 0.);
 
 	glBegin(GL_QUADS);  //Each cell is a tiny quad.
 
@@ -231,12 +230,13 @@ void display()
             glm::vec3 col;
 
 
-
 			if (ANTI_ALIASING) {
 
-                col = aliasing(xp, yp, cellX, cellY, 1);
+                col = aliasing(eye, xp, yp, cellX, cellY, 1);
 
 			} else {
+
+
                 glm::vec3 dir(xp+0.5*cellX, yp+0.5*cellY, -EDIST);	//direction of the primary ray
 
                 Ray ray = Ray(eye, dir);
@@ -251,7 +251,6 @@ void display()
 			glVertex2f(xp, yp+cellY);
         }
     }
-
     glEnd();
     glFlush();
 }
@@ -325,15 +324,15 @@ void initialize()
     sphere3->setReflectivity(true, 0.8);
     sceneObjects.push_back(sphere3);
 
-    Sphere *sphere4 = new Sphere(glm::vec3(20, -6.5, -50), 4);
-	sphere4->setTransparency(true, 0.5);
-	sphere4->setColor(glm::vec3(0.4, 0.4, 0.8));
-	sphere4->setReflectivity(true, 0.5);
-	sceneObjects.push_back(sphere4);
-
-	Cylinder *cylinder1 = new Cylinder(glm::vec3(20, -15, -50), 2.0, 5, false);
-	cylinder1->setColor(glm::vec3(0, 0, 1));
-	sceneObjects.push_back(cylinder1);
+//    Sphere *sphere4 = new Sphere(glm::vec3(20, -6.5, -50), 4);
+//	sphere4->setTransparency(true, 0.5);
+//	sphere4->setColor(glm::vec3(0.4, 0.4, 0.8));
+//	sphere4->setReflectivity(true, 0.5);
+//	sceneObjects.push_back(sphere4);
+//
+//	Cylinder *cylinder1 = new Cylinder(glm::vec3(20, -15, -50), 2.0, 5, false);
+//	cylinder1->setColor(glm::vec3(0, 0, 1));
+//	sceneObjects.push_back(cylinder1);
 
     Sphere *sphere5 = new Sphere(glm::vec3(-20, -6.5, -50), 4);
     sphere5->setTransparency(true, 0.5);
@@ -344,6 +343,12 @@ void initialize()
     Cylinder *cylinder2 = new Cylinder(glm::vec3(-20, -15, -50), 2.0, 5, false);
     cylinder2->setColor(glm::vec3(0, 0, 1));
     sceneObjects.push_back(cylinder2);
+
+    Cone *cone = new Cone(glm::vec3(25, -15, -70), 2, 5);
+    cone->setColor(glm::vec3(0, 0, 1));
+    sceneObjects.push_back(cone);
+
+
 }
 
 int main(int argc, char *argv[]) {

@@ -6,6 +6,9 @@
 #define H_CONE
 #include <glm/glm.hpp>
 #include "SceneObject.h"
+#include "math.h"
+
+#define _USE_MATH_DEFINES
 
 
 /**
@@ -19,12 +22,12 @@ private:
     glm::vec3 center = glm::vec3(0);
     float radius = 3;
     float height = 5;
-    float theta = 15;
+    float theta = atan(3/5);
 
 public:
     Cone() {};
 
-    Cone(glm::vec3 c, float r, float h, float theta) : center(c), radius(r), height(h), theta(theta) {}
+    Cone(glm::vec3 c, float r, float h) : center(c), height(h), radius(r), theta(atan(r/h)){}
 
     float intersect(glm::vec3 p0, glm::vec3 dir);
 
